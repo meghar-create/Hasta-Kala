@@ -1,0 +1,57 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sales · Hasta-Kala</title><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css?v=25b"><link rel="stylesheet" href="/assets/css/store.css?v=25b"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+if(!guard(U,['owner','staff']))return;
+const own=U.role=='owner';
+const sellers=await sb.rpc('shop_sellers').then(r=>r.data||[]);
+const TYPES=[['','All types'],['pos','In store (counter)'],['delivery','Home delivery'],['pickup','Store pickup']],
+ STAT=[['','All statuses'],['placed','Placed'],['packed','Packed / ready'],['shipped','Shipped'],['delivered','Delivered / sold'],['cancelled','Cancelled']],
+ PAYS=[['','All payments'],['paid','Paid'],['cod','Cash on delivery / at store'],['pending','Online payment pending'],['refund_due','Refund due']];
+const F={q:'',type:'',status:'',pay:'',by:'',range:'30',from:'',to:''};
+const bounds=()=>{if(F.range=='custom')return[F.from?new Date(F.from+'T00:00:00'):null,F.to?new Date(F.to+'T23:59:59'):null];
+ if(F.range=='all')return[null,null];if(F.range=='today')return[startOfDay(),null];return[addDays(startOfDay(),-(+F.range-1)),null]};
+/* one place that turns the filters into a query, used by the list, the totals and the CSV export */
+const filt=q=>{q=q.eq('shop_id',U.shop);const[a,b]=bounds();if(a)q=q.gte('created_at',a.toISOString());if(b)q=q.lte('created_at',b.toISOString());
+ if(F.type=='pos')q=q.eq('channel','pos');else if(F.type)q=q.eq('channel','online').eq('fulfilment',F.type);
+ if(F.status)q=q.eq('status',F.status);if(F.pay)q=q.eq('payment_status',F.pay);
+ if(F.by=='__online')q=q.eq('channel','online');else if(F.by)q=q.eq('sold_by_name',F.by);
+ const t=F.q.trim().replace(/[,()%*\\]/g,' ').trim();if(t){q=/^#?\d+$/.test(t)?q.or(`id.eq.${t.replace('#','')},customer_name.ilike.%${t}%`):q.ilike('customer_name','%'+t+'%')}
+ return q};
+const sel=(id,opts,cur)=>`<select id="${id}" aria-label="${id}" class="${I}">${opts.map(([v,l])=>`<option value="${esc(v)}" ${v==cur?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+A.innerHTML=`<div class="flex items-center justify-between gap-2 flex-wrap mb-3"><h1 class="text-xl font-bold">Sales &amp; online orders</h1><button id="ex" class="btn b2"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</button></div>
+<div class="surf rounded-lg p-3 mb-3"><div class="mb-2">${chips('range',[['today','Today'],['7','7 days'],['30','30 days'],['90','90 days'],['all','All time'],['custom','Custom']],F.range)}</div>
+<div class="fbar"><div class="full md:col-span-2"><label class="sr-only" for="fq">Search</label><input id="fq" type="search" placeholder="Search bill no. or customer" class="${I}"></div>
+<div>${sel('ft',TYPES,F.type)}</div><div>${sel('fs',STAT,F.status)}</div><div>${sel('fp',PAYS,F.pay)}</div>
+<div><select id="fb" aria-label="Billed by" class="${I}"><option value="">Everyone</option><option value="__online">Online (customers)</option>${sellers.map(s=>`<option value="${esc(s.name)}">${esc(s.name)} (${s.role=='owner'?'Owner':'Staff'})</option>`).join('')}</select></div>
+<div id="cu" class="full grid grid-cols-2 gap-2" hidden><div><label class="lbl" for="ff">From</label><input id="ff" type="date" class="${I}"></div><div><label class="lbl" for="fe">To</label><input id="fe" type="date" class="${I}"></div></div></div></div>
+<div id="sum" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3"></div><div id="box">${skRows(3)}</div>`;icons();
+let tk=0;
+const sumUp=async()=>{const my=++tk;$('#sum').innerHTML='';try{const rows=await fetchAll((a,b)=>filt(sb.from('orders').select('total,status,payment_status,channel,commission_amt',{count:'exact'})).order('id').range(a,b));if(my!=tk)return;
+ const ok=rows.filter(o=>o.status!='cancelled'),earned=ok.filter(earnedOrder).reduce((a,o)=>a+ +o.total,0),open=ok.filter(o=>!earnedOrder(o)&&o.payment_status!='refund_due').reduce((a,o)=>a+ +o.total,0),comm=ok.filter(earnedOrder).reduce((a,o)=>a+ +(o.commission_amt||0),0);
+ $('#sum').innerHTML=kpi('Orders / bills',rows.length,rows.length-ok.length?(rows.length-ok.length)+' cancelled':'')+kpi('Sales received',inr(earned),'paid + delivered cash orders')+kpi('Pending',inr(open),'not paid or delivered yet')+(own?kpi('Hasta-Kala commission',inr(comm),'online orders only'):kpi('Cancelled',rows.length-ok.length))}catch(e){}};
+const card=o=>{const online=o.channel=='online';return `<div class="surf rounded-lg p-3 mb-2"><div class="flex justify-between items-center flex-wrap gap-2"><b>#${ordNo(o)} · ${esc(o.customer_name)}</b><span class="flex items-center gap-2 flex-wrap"><span class="px-2 rounded ${ordType(o)[1]}">${ordType(o)[0]}</span> ${online?`<label class="sr-only" for="st${o.id}">Order status</label><select id="st${o.id}" data-o="${o.id}" data-n="${ordNo(o)}" data-prev="${esc(o.status)}" class="border">${[...stepsFor(o).map(s=>[s[0],s[1]]),['cancelled','Cancelled']].map(([v,l])=>`<option value="${v}" ${v==o.status?'selected':''} ${o.status=='cancelled'&&v!='cancelled'?'disabled':''}>${l}</option>`).join('')}</select>`:esc(o.status=='delivered'?'sold':o.status)}<a href="/invoice?id=${o.id}" class="underline text-sm">${online?'Invoice':'Bill'}</a></span></div>
+<div class="text-sm mute">${esc(when(o.created_at))} · ${esc(o.payment_method)}${online?' · '+esc(o.payment_status=='refund_due'?'⚠ REFUND DUE':payTag(o)[0]):' · Paid'}${o.address?(o.address.pickup?' · Customer collects from the store ☎ '+esc(o.address.phone):' · '+esc(o.address.address)+', '+esc(o.address.city)+' '+esc(o.address.pincode)+' ☎ '+esc(o.address.phone)):''}</div>
+<div class="text-sm"><i data-lucide="user-check" class="w-4 h-4 inline"></i> Sold by: <b>${soldBy(o)}</b></div><div class="text-sm">${o.order_items.map(i=>esc(i.name)+' × '+i.qty).join(', ')}</div>
+<b>${inr(o.total)}</b>${+o.discount?` <span class="text-xs text-ok">(${o.coupon_code?'coupon '+esc(o.coupon_code):'discount'} −${inr(o.discount)})</span>`:''}${+o.delivery_fee?` <span class="text-xs mute">(incl. delivery ${inr(o.delivery_fee)})</span>`:''}${own&&online&&o.commission_amt!=null&&o.status!='cancelled'?` <span class="text-xs mute">· Hasta-Kala commission ${inr(o.commission_amt)} (${+o.commission_pct}%)</span>`:''}${online&&o.fulfilment=='delivery'&&o.status!='cancelled'?`<div class="flex gap-2 flex-wrap mt-2 items-center"><label class="sr-only" for="cr${o.id}">Courier</label><input id="cr${o.id}" maxlength="60" placeholder="Courier (e.g. DTDC)" value="${esc(o.courier)}" class="${I}" style="max-width:12rem"><label class="sr-only" for="tn${o.id}">Tracking number or link</label><input id="tn${o.id}" maxlength="200" placeholder="Tracking no. or link" value="${esc(o.tracking_no)}" class="${I}" style="max-width:16rem"><button data-tk="${o.id}" class="btn b2">Save tracking</button></div>`:''}</div>`};
+const reload=async()=>{const old=$('#box');const nb=document.createElement('div');nb.id='box';nb.innerHTML=skRows(3);
+ /* remove the old list and its "Load more" footer, then start again from the first page */
+ const nx=old.nextElementSibling;if(nx&&nx.classList.contains('text-center'))nx.remove();old.replaceWith(nb);sumUp();
+ await paged({box:nb,size:20,load:(a,b)=>filt(sb.from('orders').select('*,order_items(*)',{count:'exact'})).order('created_at',{ascending:false}).range(a,b),card,
+  none:emptyBox('receipt','No sales match','Try a wider date range or clear some filters. New online orders and counter bills appear here as they come in.','<button id="cl" class="btn b2">Clear filters</button> <a href="/pos" class="btn b1">Open billing</a>'),after:()=>icons()})};
+const bind=()=>{let t;$('#fq').oninput=e=>{F.q=e.target.value;clearTimeout(t);t=setTimeout(reload,350)};
+ [['ft','type'],['fs','status'],['fp','pay'],['fb','by']].forEach(([id,k])=>$('#'+id).onchange=e=>{F[k]=e.target.value;reload()});
+ $('#ff').onchange=e=>{F.from=e.target.value;reload()};$('#fe').onchange=e=>{F.to=e.target.value;reload()};
+ A.querySelector('.chips').onclick=e=>{const b=e.target.closest('[data-range]');if(!b)return;F.range=b.dataset.range;A.querySelectorAll('.chip').forEach(c=>{const on=c.dataset.range==F.range;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on)});$('#cu').hidden=F.range!='custom';reload()}};
+bind();
+document.addEventListener('click',e=>{if(e.target.id!='cl')return;Object.assign(F,{q:'',type:'',status:'',pay:'',by:'',range:'30',from:'',to:''});$('#fq').value='';['ft','fs','fp','fb'].forEach(i=>$('#'+i).value='');$('#ff').value=$('#fe').value='';$('#cu').hidden=true;A.querySelectorAll('.chip').forEach(c=>{c.classList.toggle('on',c.dataset.range=='30')});reload()});
+$('#ex').onclick=async()=>{const b=$('#ex');b.disabled=true;try{const rows=await fetchAll((a,z)=>filt(sb.from('orders').select('*,order_items(name,qty)')).order('id').range(a,z));
+ csvDownload('sales-'+ymd(new Date())+'.csv',[['Bill no','Date','Type','Status','Payment','Customer','Sold by','Items','Discount','Delivery fee','Total',...(own?['Commission %','Commission']:[])],
+ ...rows.map(o=>[ordNo(o),when(o.created_at),ordType(o)[0],o.status,o.payment_status,o.customer_name,o.channel=='pos'?(o.sold_by_name||''):'Customer (online)',o.order_items.map(i=>i.name+' x'+i.qty).join('; '),o.discount,o.delivery_fee,o.total,...(own?[o.commission_pct??'',o.commission_amt??'']:[])])]);notice('Exported '+rows.length+' rows')}catch(e){notice(e,'err')}b.disabled=false};
+const root=A;
+root.addEventListener('change',async e=>{const s=e.target.closest('[data-o]');if(!s)return;s.disabled=true;
+ const{error}=await sb.from('orders').update({status:s.value}).eq('id',s.dataset.o);s.disabled=false;
+ if(error){s.value=s.dataset.prev;return notice(error,'err')}s.dataset.prev=s.value;notice('Order #'+s.dataset.n+' marked '+s.value);sumUp()});
+root.addEventListener('click',async e=>{const b=e.target.closest('[data-tk]');if(!b)return;b.disabled=true;const id=b.dataset.tk;
+ const{error}=await sb.from('orders').update({courier:$('#cr'+id).value.trim()||null,tracking_no:$('#tn'+id).value.trim()||null}).eq('id',id);b.disabled=false;error?notice(error,'err'):notice('Tracking saved for order #'+id)});
+await reload();
+},skRows(4));
+</script></body></html>

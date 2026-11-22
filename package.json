@@ -1,0 +1,22 @@
+{
+ "name": "hasta-kala-store",
+ "version": "2.5.0",
+ "private": true,
+ "description": "Hasta-Kala multi-store marketplace (Supabase + Razorpay test + Vercel)",
+ "scripts": {
+  "start": "node dev.js",
+  "dev": "node dev.js",
+  "build": "tailwindcss -i src/tailwind.input.css -o assets/css/tailwind.css --minify",
+  "watch:css": "tailwindcss -i src/tailwind.input.css -o assets/css/tailwind.css --watch"
+ },
+ "dependencies": {
+  "@supabase/supabase-js": "^2.45.4"
+ },
+ "engines": {
+  "node": ">=20"
+ },
+ "devDependencies": {
+  "tailwindcss": "^4.1.0",
+  "@tailwindcss/cli": "^4.1.0"
+ }
+}

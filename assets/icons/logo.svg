@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Hasta-Kala, Handcrafted Heritage">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E232A"/><stop offset="100%" stop-color="#12161A"/></linearGradient>
+    <linearGradient id="terracotta" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F27348"/><stop offset="50%" stop-color="#D95327"/><stop offset="100%" stop-color="#A83512"/></linearGradient>
+    <linearGradient id="gold" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#D99B26"/><stop offset="60%" stop-color="#F4C366"/><stop offset="100%" stop-color="#FCE8B3"/></linearGradient>
+    <linearGradient id="woodHandle" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#8B5A2B"/><stop offset="50%" stop-color="#BA783E"/><stop offset="100%" stop-color="#6E4119"/></linearGradient>
+    <linearGradient id="hammerHead" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#5A6472"/><stop offset="35%" stop-color="#3A424D"/><stop offset="70%" stop-color="#242B35"/><stop offset="100%" stop-color="#181D24"/></linearGradient>
+    <linearGradient id="bronzeTrim" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F2A65A"/><stop offset="100%" stop-color="#A75E1B"/></linearGradient>
+    <radialGradient id="ambientGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#D95327" stop-opacity="0.18"/><stop offset="100%" stop-color="#D95327" stop-opacity="0"/></radialGradient>
+    <filter id="dropShadow" x="-15%" y="-15%" width="130%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.5"/></filter>
+  </defs>
+  <rect width="600" height="600" rx="44" fill="url(#bgGrad)"/>
+  <circle cx="300" cy="225" r="170" fill="url(#ambientGlow)"/>
+  <g stroke="#E5A962" stroke-opacity="0.22" stroke-linecap="round">
+    <circle cx="300" cy="225" r="152" fill="none" stroke-width="2" stroke-dasharray="4 8"/>
+    <circle cx="300" cy="225" r="138" fill="none" stroke-width="1" stroke-dasharray="1 5" stroke-opacity="0.15"/>
+    <circle cx="300" cy="225" r="168" fill="none" stroke-width="1" stroke-dasharray="2 12" stroke-opacity="0.1"/>
+    <line x1="300" y1="58" x2="300" y2="70" stroke-width="2.5"/><line x1="300" y1="380" x2="300" y2="392" stroke-width="2.5"/>
+    <line x1="133" y1="225" x2="145" y2="225" stroke-width="2.5"/><line x1="455" y1="225" x2="467" y2="225" stroke-width="2.5"/>
+  </g>
+  <g filter="url(#dropShadow)">
+    <g transform="rotate(45 300 225)">
+      <rect x="290" y="110" width="20" height="235" rx="10" fill="url(#woodHandle)" stroke="#4A260C" stroke-width="1.5"/>
+      <line x1="290" y1="310" x2="310" y2="310" stroke="#FCE8B3" stroke-opacity="0.3" stroke-width="2"/>
+      <line x1="290" y1="320" x2="310" y2="320" stroke="#FCE8B3" stroke-opacity="0.3" stroke-width="2"/>
+      <line x1="290" y1="330" x2="310" y2="330" stroke="#FCE8B3" stroke-opacity="0.3" stroke-width="2"/>
+      <rect x="286" y="102" width="28" height="12" rx="3" fill="url(#bronzeTrim)"/>
+      <path d="M266 74 C266 70,274 68,300 68 C326 68,334 70,334 74 L332 94 C332 98,324 102,300 102 C276 102,268 98,268 94 Z" fill="url(#hammerHead)"/>
+      <ellipse cx="300" cy="68" rx="6" ry="2.5" fill="#BA783E"/>
+      <rect x="256" y="78" width="12" height="16" rx="2" fill="url(#bronzeTrim)"/>
+      <rect x="332" y="78" width="12" height="16" rx="2" fill="url(#bronzeTrim)"/>
+    </g>
+    <path d="M216 135 C225 135,232 142,232 152 L232 298 C232 308,225 315,216 315 C207 315,200 308,200 298 L200 152 C200 142,207 135,216 135 Z" fill="url(#terracotta)"/>
+    <path d="M284 125 C293 125,300 132,300 142 L300 308 C300 318,293 325,284 325 C275 325,268 318,268 308 L268 142 C268 132,275 125,284 125 Z" fill="url(#terracotta)"/>
+    <path d="M216 215 C240 215,255 216,284 216 C294 216,294 235,284 235 C255 235,240 236,216 236 C206 236,206 215,216 215 Z" fill="url(#gold)"/>
+    <path d="M288 230 L362 144 C369 135,382 140,384 151 C385 158,380 166,372 174 L318 238 Z" fill="url(#gold)"/>
+    <path d="M298 220 C314 220,328 236,338 252 L374 304 C380 312,389 316,398 316 C404 316,407 308,401 302 L362 246 C350 228,332 208,304 208 Z" fill="url(#gold)"/>
+    <circle cx="284" cy="225" r="7.5" fill="#FCE8B3"/><circle cx="284" cy="225" r="3.5" fill="#6E4119"/>
+  </g>
+  <text x="300" y="445" text-anchor="middle" fill="#FDFBF7" font-family="Cinzel, 'Palatino Linotype', Georgia, serif" font-size="36" font-weight="600" letter-spacing="9">HASTA&#x200A;·&#x200A;KALA</text>
+  <text x="300" y="480" text-anchor="middle" fill="#E5A84B" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" letter-spacing="5">HANDCRAFTED HERITAGE</text>
+</svg>

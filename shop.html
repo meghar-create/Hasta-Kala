@@ -1,0 +1,25 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shop · Hasta-Kala</title><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css"><link rel="stylesheet" href="/assets/css/store.css"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+const P=new URLSearchParams(location.search),q=(P.get('q')||'').replace(/[,()%*\\]/g,' ').trim(),cat=(P.get('cat')||'').replace(/\D/g,''),sort=['new','lo','hi'].includes(P.get('sort'))?P.get('sort'):'new';
+const SID=(P.get('id')||'').replace(/\D/g,'');
+const gone=()=>{A.innerHTML=emptyBox('store','Store not available','This store may be closed for now, or the link is wrong.','<a href="/" class="btn b1">Browse stores</a>')};
+if(!SID)return gone();
+const[shop,cats]=await Promise.all([sb.from('shops').select('*').eq('id',SID).maybeSingle().then(must),sb.from('categories').select('*').order('name').then(must),Wish.load(U)]);
+if(!shop)return gone();
+document.title=shop.name+' · Hasta-Kala';
+const keep=extra=>{const x=new URLSearchParams({id:SID});if(q)x.set('q',q);if(sort!='new')x.set('sort',sort);Object.entries(extra).forEach(([k,v])=>v&&x.set(k,v));return '/shop?'+x};
+A.innerHTML=`<div class="sh sc-${(shop.id||0)%6}" style="position:relative"><div class="sc-band"></div><a href="/" class="back"><i data-lucide="arrow-left" class="w-4 h-4 shrink-0"></i><span>All stores</span></a><div class="sh-body"><img src="${shopLogo(shop)}" alt="" class="sc-logo"><div class="sh-txt"><h1 class="font-bold">${esc(shop.name)}</h1><p class="mute text-sm sh-loc"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${esc(shop.city)}${shop.description?' · '+esc(shop.description):''}</p><div class="sc-tags" style="padding-top:.5rem">${shopTags(shop)}</div></div><details class="sh-more"><summary class="cursor-pointer font-semibold">Delivery &amp; payment details</summary><p class="mt-1">${esc(deliveryInfo(shop))}</p></details></div></div>
+<div class="filters"><label class="sr-only" for="fc">Category</label><select id="fc" class="in"><option value="">All categories</option>${cats.map(c=>`<option value="${c.id}" ${cat==c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select><label class="sr-only" for="so">Sort products</label><select id="so" class="in"><option value="new">Newest</option><option value="lo">Price: Low to High</option><option value="hi">Price: High to Low</option></select></div>
+${q?`<p class="mb-3 text-sm mute">Results for “${esc(q)}” · <a class="underline" href="${keep({cat}).replace(/[?&]q=[^&]*/,'')}">clear</a></p>`:''}
+<div id="box" class="pgrid">${skCards(8)}</div>`;
+$('#fc').onchange=e=>{location.href=keep({cat:e.target.value})};$('#so').value=sort;$('#so').onchange=e=>{P.set('sort',e.target.value);location.search=P};
+const PM=new Map(),o={new:['created_at',0],lo:['price',1],hi:['price',0]}[sort],box=$('#box');
+await paged({box,size:12,
+ load:(a,b)=>{let r=sb.from('products').select('*',{count:'exact'}).eq('shop_id',SID);if(q)r=r.ilike('name','%'+q+'%');if(cat)r=r.eq('category_id',cat);return r.order(o[0],{ascending:!!o[1]}).range(a,b)},
+ after:d=>d.forEach(p=>PM.set(p.id,p)),
+ card:p=>prodCard(p,{heart:!U.session||U.buyer}),
+ none:emptyBox('package-open',q||cat?'No products match':'This store has no products yet',q||cat?'Try removing a filter or searching for something else.':'The shop is still setting up. Please check back soon.',q||cat?`<a href="/shop?id=${SID}" class="btn b2">Clear filters</a>`:'<a href="/" class="btn b2">Browse other stores</a>')});
+box.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(b&&Cart.add(PM.get(+b.dataset.id)))notice('Added to cart')});
+if(!U.session||U.buyer)Wish.bind(box,U);
+},'<div class="sk h-24 rounded-lg mb-4"></div><div class="pgrid">'+skCards(8)+'</div>');
+</script></body></html>

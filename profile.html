@@ -1,0 +1,40 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Profile · Hasta-Kala</title><meta name="robots" content="noindex"><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css"><link rel="stylesheet" href="/assets/css/store.css"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+if(!U.session)return location='/login?next=/profile';
+const uid=U.session.user.id;let pf=U.pf,edit=null;
+const phoneOk=v=>/^[6-9]\d{9}$/.test(v),norm=v=>String(v||'').replace(/[\s-]/g,'').replace(/^\+?91/,'');
+const redraw=()=>draw().catch(x=>{A.innerHTML=errBox(x)});
+const draw=async()=>{
+const ad=must(await sb.from('addresses').select('*').order('is_default',{ascending:false}).order('id'));
+const e=edit&&(edit=='new'?{}:ad.find(a=>a.id==edit))||null,inp=(k,l,ac,v='',x='')=>`<div><label class="lbl" for="a_${k}">${l}</label><input id="a_${k}" data-a="${k}" ${x} autocomplete="${ac}" value="${esc(v)}" class="${I}"></div>`;
+A.innerHTML=`<h1 class="text-xl font-bold mb-3">My profile</h1>
+<div class="grid md:grid-cols-2 gap-4 mb-4"><section class="surf rounded-lg p-4 space-y-2" aria-labelledby="h-acc"><h2 id="h-acc" class="font-bold">Account</h2>
+<div><label class="lbl" for="p_em">Email</label><input id="p_em" class="${I}" value="${esc(pf.email)}" readonly></div>
+<div><label class="lbl" for="p_fn">Full name</label><input id="p_fn" class="${I}" autocomplete="name" maxlength="100" value="${esc(pf.full_name)}"></div>
+<div><label class="lbl" for="p_ph">Mobile number</label><input id="p_ph" class="${I}" autocomplete="tel" inputmode="tel" value="${esc(pf.phone)}"></div>
+<p id="pe" class="text-bad text-sm" role="alert" hidden></p><button id="ps" class="${B}">Save changes</button></section>
+<section class="surf rounded-lg p-4 space-y-3" aria-labelledby="h-q"><h2 id="h-q" class="font-bold">Quick links</h2>
+<a href="/orders" class="btn b2 w-full justify-start"><i data-lucide="package" class="w-4 h-4"></i> My orders and invoices</a><a href="/wishlist" class="btn b2 w-full justify-start"><i data-lucide="heart" class="w-4 h-4"></i> Wishlist</a>
+<button id="pw" class="btn b2 w-full justify-start"><i data-lucide="lock" class="w-4 h-4"></i> Email me a password reset link</button><button id="so" class="btn b2 w-full justify-start"><i data-lucide="log-out" class="w-4 h-4"></i> Sign out</button></section></div>
+<section class="surf rounded-lg p-4" aria-labelledby="h-ad"><div class="flex items-center justify-between mb-2"><h2 id="h-ad" class="font-bold">Saved addresses <span class="mute font-normal text-sm">(${ad.length}/10)</span></h2>${!edit&&ad.length<10?`<button id="an" class="btn b2"><i data-lucide="plus" class="w-4 h-4"></i> Add address</button>`:''}</div>
+${edit?`<form id="af" class="surf2 rounded-lg p-3 mb-3 grid sm:grid-cols-2 gap-2" novalidate><div><label class="lbl" for="a_label">Label</label><select id="a_label" data-a="label" class="${I}">${['Home','Work','Other'].map(l=>`<option ${e?.label==l?'selected':''}>${l}</option>`).join('')}</select></div>${inp('name','Full name','name',e?.name||pf.full_name||'')}${inp('phone','Mobile number','tel',e?.phone||pf.phone||'')}${inp('pincode','Pincode','postal-code',e?.pincode)}<div class="sm:col-span-2">${inp('address','Address (house, street, area)','street-address',e?.address)}</div>${inp('city','City','address-level2',e?.city,'list="kcities"')}<datalist id="kcities">${CITIES.map(c=>`<option value="${c.n}">`).join('')}</datalist>
+<label class="flex items-center gap-2 text-sm self-end pb-2"><input type="checkbox" id="a_def" ${e?.is_default?'checked':''}> Make this my default address</label>
+<p id="ae" class="text-bad text-sm sm:col-span-2" role="alert" hidden></p><div class="sm:col-span-2 flex gap-2"><button class="${B}">${e?.id?'Save address':'Add address'}</button><button type="button" id="ac" class="btn b2">Cancel</button></div></form>`:''}
+${ad.length?ad.map(a=>`<div class="border-t py-3 flex gap-3 flex-wrap items-start"><div class="flex-1" style="min-width:14rem"><b>${esc(a.label)}</b> ${a.is_default?'<span class="px-2 t-ok rounded text-xs">Default</span>':''}<div class="text-sm">${esc(a.name)} · ☎ ${esc(a.phone)}</div><div class="text-sm mute">${esc(a.address)}, ${esc(a.city)} ${esc(a.pincode)}</div></div><div class="flex gap-3 text-sm">${a.is_default?'':`<button data-d="${a.id}" class="underline">Make default</button>`}<button data-e="${a.id}" class="underline">Edit</button><button data-x="${a.id}" class="text-bad underline">Delete</button></div></div>`).join(''):(edit?'':emptyBox('map-pin','No saved addresses','Save an address once and use it at checkout in one tap.'))}</section>`;
+$('#ps').onclick=async()=>{const er=$('#pe'),ph=norm($('#p_ph').value);er.hidden=true;if(ph&&!phoneOk(ph)){er.hidden=false;er.textContent='Enter a valid 10-digit mobile number, or leave it empty.';return}
+ $('#ps').disabled=true;const{data,error}=await sb.from('profiles').update({full_name:$('#p_fn').value.trim()||null,phone:ph||null}).eq('id',uid).select().single();$('#ps').disabled=false;
+ if(error)return notice(error,'err');pf=data;notice('Profile saved')};
+$('#pw').onclick=async()=>{const{error}=await sb.auth.resetPasswordForEmail(pf.email,{redirectTo:location.origin+'/reset-password'});error?notice(error,'err'):notice('Reset link sent to '+pf.email+'. Check your inbox and spam folder.')};
+$('#so').onclick=async()=>{await sb.auth.signOut();location='/'};
+$('#an')&&($('#an').onclick=()=>{edit='new';redraw()});
+$('#ac')&&($('#ac').onclick=()=>{edit=null;redraw()});
+$('#af')&&($('#af').onsubmit=async ev=>{ev.preventDefault();const er=$('#ae');er.hidden=true;const v={};A.querySelectorAll('[data-a]').forEach(x=>v[x.dataset.a]=x.value.trim());v.phone=norm(v.phone);
+ const bad=!v.name?'Enter the full name.':!phoneOk(v.phone)?'Enter a valid 10-digit mobile number.':!v.address?'Enter the address.':!v.city?'Enter the city.':!/^[1-9]\d{5}$/.test(v.pincode)?'Enter a valid 6-digit pincode.':'';
+ if(bad){er.hidden=false;er.textContent=bad;return}v.is_default=$('#a_def').checked||!ad.length;
+ const r=e?.id?await sb.from('addresses').update(v).eq('id',e.id):await sb.from('addresses').insert(v);if(r.error){er.hidden=false;er.textContent=msgOf(r.error);return}
+ edit=null;notice('Address saved');redraw()});
+A.querySelectorAll('[data-e]').forEach(b=>b.onclick=async()=>{edit=+b.dataset.e;await draw().catch(x=>{A.innerHTML=errBox(x)});$('#af')?.scrollIntoView({block:'center'})});
+A.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{const{error}=await sb.from('addresses').update({is_default:true}).eq('id',b.dataset.d);if(error)return notice(error,'err');redraw()});
+A.querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this address?'))return;const{error}=await sb.from('addresses').delete().eq('id',b.dataset.x);if(error)return notice(error,'err');notice('Address deleted');redraw()})};
+await draw()},skRows(3));
+</script></body></html>

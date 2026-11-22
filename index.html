@@ -1,0 +1,38 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hasta-Kala · Handcrafted goods from local artisans</title><meta name="description" content="Handcrafted goods from local artisan shops, all in one place."><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css"><link rel="stylesheet" href="/assets/css/store.css"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+const P=new URLSearchParams(location.search),q=(P.get('q')||'').replace(/[,()%*\\]/g,' ').trim(),cat=(P.get('cat')||'').replace(/\D/g,''),sort=['new','lo','hi'].includes(P.get('sort'))?P.get('sort'):'new';
+/* "Use my location" picks the nearest town that has stores (no dropdown, so any shop city works) */
+const TOWNS=[['Bengaluru',['Bangalore'],12.9716,77.5946],['Mysuru',['Mysore'],12.2958,76.6394],['Mangalore',['Mangaluru'],12.9141,74.8560],['Hubballi',['Hubli'],15.3647,75.1240],['Belagavi',['Belgaum'],15.8497,74.4977],['Shivamogga',['Shimoga'],13.9299,75.5681],['Channapatna',[],12.6514,77.2067],['Ilkal',[],15.9667,76.1167],['Bidar',[],17.9104,77.5199],['Dharwad',[],15.4589,75.0078],['Sandur',[],15.0870,76.5470],['Udupi',[],13.3409,74.7421]];
+let city='',names=[];
+const cats=must(await sb.from('categories').select('*').order('name')),href=x=>{const u=new URLSearchParams();if(q)u.set('q',q);if(cat&&x.cat===undefined)u.set('cat',cat);Object.entries(x).forEach(([k,v])=>v&&u.set(k,v));const t=u.toString();return '/'+(t?'?'+t:'')};
+A.innerHTML=`<div class="hero rounded-lg p-6 mb-4"><h1 class="text-2xl font-bold">Handcrafted by local artisans</h1><p>Shop products from artisan stores across Karnataka.</p><p class="mt-2 text-sm">Own a shop? <a href="/add-shop" class="underline font-semibold">Add your shop to Hasta·Kala →</a></p></div>
+<div class="surf rounded-lg p-3 mb-2 citybar"><button type="button" id="geo" class="btn b2 cb-geo"><i data-lucide="locate-fixed" class="w-4 h-4"></i>Use my location</button><span id="gm" class="cb-msg text-sm mute" role="status"></span><button type="button" id="all" class="btn b2" hidden>Show all cities</button></div>
+<div id="wrap"></div>`;icons();
+const show=()=>{const where=city?' in '+esc(city):'';
+ $('#wrap').innerHTML=`<section id="stores" hidden><div class="sec-h"><h2>Stores${where}</h2><span class="rail-nav"><button type="button" class="rail-btn" data-rail="-1" aria-label="Previous stores"><i data-lucide="chevron-left" class="w-4 h-4"></i></button><button type="button" class="rail-btn" data-rail="1" aria-label="Next stores"><i data-lucide="chevron-right" class="w-4 h-4"></i></button></span></div><div id="rail" class="rail"></div></section>
+ <div class="sec-h"><h2>${q?'Results for “'+esc(q)+'”':'Handcrafted picks'+where}</h2>${q?`<a class="text-sm underline" href="${href({q:''})}">Clear</a>`:''}</div>
+ <div class="filters"><label class="sr-only" for="fc">Category</label><select id="fc" class="in"><option value="">All categories</option>${cats.map(c=>`<option value="${c.id}" ${cat==c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select><label class="sr-only" for="so">Sort</label><select id="so" class="in"><option value="new" ${sort=='new'?'selected':''}>Newest</option><option value="lo" ${sort=='lo'?'selected':''}>Price: Low to High</option><option value="hi" ${sort=='hi'?'selected':''}>Price: High to Low</option></select></div>
+ <div id="box" class="pgrid">${skCards(8)}</div>`;icons();
+ /* stores rail (up to 12 stores; hidden when none match) */
+ let r=sb.from('shops').select('*').eq('approved',true);if(names.length)r=r.or(names.map(n=>`city.ilike.${n}`).join(','));if(q)r=r.or(`name.ilike.%${q}%,city.ilike.%${q}%`);
+ r.order('name').limit(12).then(({data})=>{if(!data||!data.length)return;const sec=$('#stores'),rail=$('#rail');rail.innerHTML=data.map(storeCard).join('');sec.hidden=false;icons();
+  const nav=sec.querySelector('.rail-nav'),fit=()=>{nav.style.display=rail.scrollWidth>rail.clientWidth+4?'':'none'};fit();addEventListener('resize',fit);
+  sec.querySelectorAll('[data-rail]').forEach(b=>b.onclick=()=>rail.scrollBy({left:+b.dataset.rail*rail.clientWidth*.8,behavior:'smooth'}))});
+ /* products feed, newest first, from approved stores */
+ const PM=new Map(),box=$('#box'),SM=new Map(),none=emptyBox('package-open',q?`Nothing matches “${esc(q)}”`:city?`No products in ${esc(city)} yet`:'No products yet',q?'Check the spelling, or try a store or city name.':city?'Try showing all cities.':'New artisan shops are joining soon. Please check back.',q||cat?`<a href="/" class="btn b2">Clear filters</a>`:'');
+ paged({box,size:12,
+ load:(a,b)=>{let r=sb.from('products').select('*,shops!inner(id,name,city,approved)',{count:'exact'}).eq('shops.approved',true);if(names.length)r=r.or(names.map(n=>`city.ilike.${n}`).join(','),{referencedTable:'shops'});if(q)r=r.ilike('name','%'+q+'%');if(cat)r=r.eq('category_id',cat);const o={new:['created_at',false],lo:['price',true],hi:['price',false]}[sort];return r.order(o[0],{ascending:o[1]}).range(a,b)},
+ after:d=>d.forEach(p=>PM.set(p.id,p)),
+ card:p=>prodCard(p,{heart:!U.session||U.buyer,shop:p.shops}),none});
+ const go=(k,v)=>{const u=new URLSearchParams(location.search);v?u.set(k,v):u.delete(k);location.search=u};$('#fc').onchange=e=>go('cat',e.target.value);$('#so').onchange=e=>go('sort',e.target.value=='new'?'':e.target.value);
+ box.onclick=e=>{const b=e.target.closest('button[data-id]');if(b&&Cart.add(PM.get(+b.dataset.id)))notice('Added to cart')};
+ if(!U.session||U.buyer)Wish.bind(box,U)};
+if(U.buyer)await Wish.load(U);
+const setCity=t=>{city=t?t[0]:'';names=t?[t[0],...t[1]]:[];$('#all').hidden=!t;show()};
+$('#all').onclick=()=>{$('#gm').textContent='';setCity(null)};
+$('#geo').onclick=()=>{const m=$('#gm');if(!navigator.geolocation){m.textContent='Location is not available on this device.';return}
+ m.textContent='Finding your location…';
+ navigator.geolocation.getCurrentPosition(p=>{const la=p.coords.latitude,lo=p.coords.longitude,d=t=>Math.hypot(t[2]-la,(t[3]-lo)*Math.cos(la*Math.PI/180))*111,t=TOWNS.slice().sort((x,y)=>d(x)-d(y))[0],km=d(t);setCity(t);m.textContent=km>150?`You seem to be far from our stores. Showing the nearest: ${t[0]}.`:`Showing stores near you: ${t[0]}.`},()=>{m.textContent='Could not get your location.'},{timeout:10000,maximumAge:600000})};
+show();
+},'<div class="sk h-24 rounded-lg mb-4"></div>'+skGrid(8));
+</script></body></html>

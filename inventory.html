@@ -1,0 +1,64 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventory · Hasta-Kala</title><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css"><link rel="stylesheet" href="/assets/css/store.css"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+if(!guard(U,['owner','staff']))return;const own=U.role=='owner';
+const cats=must(await sb.from('categories').select('*').order('name'));let q='';
+const oops=x=>{$('#lw').innerHTML=errBox(x,{home:false})};
+let F=null,orig=[],fresh=[];            // F = product form state (null = closed), orig = photos the product had, fresh = photos uploaded in this session
+const cache=new Map();
+A.innerHTML=`<div class="flex items-center justify-between gap-2 flex-wrap mb-3"><h1 class="text-xl font-bold">Inventory ${own?'':'(read-only)'}</h1>${own?`<button id="an" class="${B}">+ Add product</button>`:''}</div><div id="fw"></div>
+<div class="mb-3"><label class="sr-only" for="sq">Search products</label><input id="sq" type="search" placeholder="Search your products" class="${I}"></div><div id="lw"></div>`;
+
+/* ---------- product form (add + edit) ---------- */
+const imgGrid=()=>{const n=F.images.length;return `<div class="flex gap-2 flex-wrap">${F.images.map((u,i)=>`<div style="width:92px"><div class="relative"><img src="${esc(safeUrl(u,'/assets/icons/mark.svg'))}" alt="Photo ${i+1}" class="rounded object-cover" style="width:92px;height:92px">${i==0?'<span class="absolute text-xs px-1 rounded t-ok" style="left:4px;top:4px">Cover</span>':''}</div><div class="flex justify-between text-xs mt-1">${i?`<button type="button" data-cv="${i}" class="underline">Make cover</button>`:'<span></span>'}<button type="button" data-rm="${i}" class="text-bad underline">Remove</button></div></div>`).join('')}${n<MAX_IMG?`<label class="surf2 rounded flex items-center justify-center text-sm cursor-pointer text-center" style="width:92px;height:92px"><input id="pf_file" type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only">+ Add photos</label>`:''}</div><p class="text-xs mute mt-1">${n}/${MAX_IMG} photos. The first photo is the cover shown on store pages. JPG, PNG or WebP; photos are shrunk automatically.</p>`};
+const formHtml=()=>`<form id="pf" class="surf p-4 rounded-lg mb-4 grid md:grid-cols-4 gap-2" novalidate><h2 class="font-bold md:col-span-4">${F.id?'Edit product':'New product'}</h2>
+<div><label class="lbl" for="pn">Name</label><input id="pn" value="${esc(F.name)}" class="${I}"></div>
+<div><label class="lbl" for="pp">Price ₹</label><input id="pp" type="number" min="1" value="${esc(F.price)}" class="${I}"></div>
+<div><label class="lbl" for="pm">MRP ₹ (optional)</label><input id="pm" type="number" min="0" value="${esc(F.mrp)}" class="${I}"></div>
+<div><label class="lbl" for="ps">Stock</label><input id="ps" type="number" min="0" value="${esc(F.stock)}" class="${I}"></div>
+<div><label class="lbl" for="pc">Category</label><select id="pc" class="${I}">${cats.map(c=>`<option value="${c.id}" ${c.id==F.category_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+<div class="md:col-span-3"><label class="lbl" for="pd">Description</label><textarea id="pd" rows="3" maxlength="1000" class="${I}">${esc(F.description)}</textarea></div>
+<div class="md:col-span-4"><span class="lbl">Photos</span><div id="ig">${imgGrid()}</div><div class="flex gap-2 mt-2 flex-wrap"><input id="pf_url" placeholder="Or paste an image link (https://…)" aria-label="Image link" class="${I}" style="max-width:24rem"><button type="button" id="pf_ua" class="btn b2">Add link</button></div><p id="pf_msg" class="text-sm mt-1 mute" role="status"></p></div>
+<p id="pe" class="text-bad text-sm md:col-span-4" role="alert" hidden></p><div class="md:col-span-4 flex gap-2 flex-wrap"><button class="${B}">${F.id?'Save changes':'Add product'}</button><button type="button" id="pf_x" class="btn b2">Cancel</button></div></form>`;
+const syncF=()=>{if(F&&$('#pn'))Object.assign(F,{name:$('#pn').value,price:$('#pp').value,mrp:$('#pm').value,stock:$('#ps').value,category_id:+$('#pc').value,description:$('#pd').value})};
+const msg=(t,bad)=>{const m=$('#pf_msg');if(m){m.textContent=t||'';m.className='text-sm mt-1 '+(bad?'text-bad':'mute')}};
+const redrawImgs=()=>{$('#ig').innerHTML=imgGrid()};
+const openForm=p=>{orig=p?prodImgs(p):[];fresh=[];
+ F=p?{id:p.id,name:p.name,price:p.price,mrp:p.mrp??'',stock:p.stock,category_id:p.category_id,description:p.description||'',images:[...orig]}:{name:'',price:'',mrp:'',stock:'',category_id:cats[0]?.id,description:'',images:[]};
+ $('#fw').innerHTML=formHtml();$('#fw').scrollIntoView({behavior:'smooth',block:'start'})};
+const closeForm=()=>{fresh.forEach(dropStoredImage);F=null;fresh=[];$('#fw').innerHTML=''};
+const fw=$('#fw');
+fw.onclick=e=>{if(!F)return;const rm=e.target.closest('[data-rm]'),cv=e.target.closest('[data-cv]');
+ if(rm){const i=+rm.dataset.rm,u=F.images[i];F.images.splice(i,1);const k=fresh.indexOf(u);if(k>-1){fresh.splice(k,1);dropStoredImage(u)}redrawImgs();return}
+ if(cv){const i=+cv.dataset.cv;F.images.unshift(F.images.splice(i,1)[0]);redrawImgs();return}
+ if(e.target.id=='pf_x')return closeForm();
+ if(e.target.id=='pf_ua'){const v=$('#pf_url').value.trim();if(!/^https?:\/\//i.test(v))return msg('The link must start with http:// or https://',1);
+  if(F.images.length>=MAX_IMG)return msg('You can add up to '+MAX_IMG+' photos.',1);F.images.push(v);$('#pf_url').value='';msg('');redrawImgs()}};
+fw.onchange=async e=>{if(!F||e.target.id!='pf_file')return;const files=[...e.target.files];if(!files.length)return;const room=MAX_IMG-F.images.length;
+ for(const f of files.slice(0,room)){msg('Uploading '+f.name+'…');try{const u=await uploadProductImage(U.shop,f);F.images.push(u);fresh.push(u)}catch(x){redrawImgs();return msg(x.message||String(x),1)}}
+ redrawImgs();if(files.length>room)msg('Only '+MAX_IMG+' photos are allowed; extra files were skipped.',1)};
+fw.onsubmit=async ev=>{ev.preventDefault();if(!F)return;syncF();const er=$('#pe');er.hidden=true;
+ const v={name:F.name.trim(),price:+F.price,mrp:+F.mrp||null,stock:Math.floor(+F.stock),category_id:+F.category_id,description:F.description.trim(),images:F.images.slice(0,MAX_IMG)};v.image_url=v.images[0]||null;
+ const bad=!v.name?'Enter a product name.':!(v.price>0)?'Enter a price above 0.':v.mrp&&v.mrp<v.price?'MRP cannot be lower than the price.':(String(F.stock).trim()===''||!(v.stock>=0))?'Enter the stock quantity.':'';
+ if(bad){er.hidden=false;er.textContent=bad;return}
+ const btn=ev.target.querySelector('button:not([type])'),edit=!!F.id;btn.disabled=true;
+ const r=edit?await sb.from('products').update(v).eq('id',F.id):await sb.from('products').insert({...v,shop_id:U.shop});
+ if(r.error){btn.disabled=false;er.hidden=false;er.textContent=msgOf(r.error);return}
+ [...orig,...fresh].filter(u=>!v.images.includes(u)).forEach(dropStoredImage);      // photos removed while editing
+ F=null;fresh=[];$('#fw').innerHTML='';notice(edit?'Product updated. Customers see the change straight away.':'Product added');list().catch(oops)};
+
+/* ---------- product list ---------- */
+const list=async()=>{$('#lw').innerHTML=`<div class="surf p-4 rounded-lg"><div id="box">${skRows(4)}</div></div>`;const box=$('#box');
+ await paged({box,size:25,load:(a,b)=>{let r=sb.from('products').select('*',{count:'exact'}).order('name');if(q)r=r.ilike('name','%'+q.replace(/[,()%*\\]/g,' ')+'%');return r.range(a,b)},
+ card:p=>{cache.set(p.id,p);const n=prodImgs(p).length;return `<div class="flex gap-3 items-center border-b py-2 flex-wrap ${p.stock<6?'t-bad-soft':''}"><img src="${esc(safeUrl(prodImgs(p)[0],'/assets/icons/mark.svg'))}" alt="" class="rounded object-cover shrink-0" style="width:48px;height:48px"><div class="flex-1" style="min-width:9rem"><div class="font-medium">${esc(p.name)}</div><div class="text-sm mute">${inr(p.price)}${+p.mrp>+p.price?` <s>${inr(p.mrp)}</s>`:''} · ${n} photo${n==1?'':'s'}</div></div>${own?`<div class="flex items-center gap-3 basis-full sm:basis-auto pl-[60px] sm:pl-0"><label class="text-sm" for="s${p.id}">Stock</label><input id="s${p.id}" type="number" min="0" value="${p.stock}" data-s="${p.id}" data-prev="${p.stock}" class="border w-20 px-1"><button data-e="${p.id}" class="underline">Edit</button><button data-d="${p.id}" class="text-bad">Delete</button></div>`:`<b>${p.stock} in stock</b>`}</div>`},
+ none:emptyBox('boxes',q?'No products match your search':'No products yet',own?(q?'':'Add your first product with the button above.'):'The owner has not added products yet.')})};
+$('#sq').oninput=(()=>{let t;return e=>{clearTimeout(t);t=setTimeout(()=>{q=e.target.value.trim();list().catch(oops)},300)}})();
+if(own){
+ $('#an').onclick=()=>openForm(null);
+ $('#lw').addEventListener('change',async e=>{const s=e.target.closest('[data-s]');if(!s)return;const n=Math.floor(+s.value);if(!(n>=0)){s.value=s.dataset.prev;return notice('Stock must be 0 or more.','err')}
+  const{error}=await sb.from('products').update({stock:n}).eq('id',s.dataset.s);if(error){s.value=s.dataset.prev;return notice(error,'err')}s.dataset.prev=n;const c=cache.get(+s.dataset.s);if(c)c.stock=n;notice('Stock saved')});
+ $('#lw').addEventListener('click',async e=>{const ed=e.target.closest('[data-e]');if(ed){const p=cache.get(+ed.dataset.e);if(p)openForm(p);return}
+  const b=e.target.closest('[data-d]');if(!b||!confirm('Delete this product?'))return;const id=+b.dataset.d,{error}=await sb.from('products').delete().eq('id',id);
+  if(error)return notice(error.code=='23503'?'This product is used in past orders, so it cannot be deleted. Set its stock to 0 instead.':error,'err');
+  const p=cache.get(id);p&&prodImgs(p).forEach(dropStoredImage);notice('Product deleted');list().catch(oops)})}
+await list()},skRows(3));
+</script></body></html>

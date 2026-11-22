@@ -1,0 +1,16 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="google" content="notranslate"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wishlist · Hasta-Kala</title><meta name="robots" content="noindex"><link rel="icon" href="/assets/icons/favicon.svg"><meta name="theme-color" content="#14181D"><meta name="color-scheme" content="light dark"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"><script src="/assets/vendor/lucide.min.js"></script><link rel="stylesheet" href="/assets/css/styles.css"><link rel="stylesheet" href="/assets/css/store.css"><link rel="stylesheet" href="/assets/css/tailwind.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="/config.js"></script><script src="/assets/js/i18n-dict.js"></script><script src="/assets/js/i18n-extra.js"></script><script src="/assets/js/i18n-demo.js"></script><script src="/assets/js/i18n.js"></script><script src="/assets/js/app.js"></script><script src="/assets/js/lens.js"></script></head><body><main id="app" class="max-w-6xl mx-auto p-4 w-full"></main><script>
+boot(async(U,A)=>{
+if(!U.session)return location='/login?next=/wishlist';
+if(!U.buyer){A.innerHTML=emptyBox('lock','Wishlists are for customer accounts','','<a href="/" class="btn b1">Back to stores</a>');return}
+await Wish.load(U);
+A.innerHTML=`<h1 class="text-xl font-bold mb-3">My wishlist</h1><div id="box" class="pgrid">${skCards(4)}</div>`;const box=$('#box'),PM=new Map();
+const none=emptyBox('heart','Your wishlist is empty','Tap the heart on any product to save it here for later.','<a href="/" class="btn b1">Browse stores</a>');
+await paged({box,size:12,
+ load:(a,b)=>sb.from('wishlist').select('product_id,created_at,products(*)',{count:'exact'}).order('created_at',{ascending:false}).range(a,b),
+ after:d=>d.forEach(r=>r.products&&PM.set(r.products.id,r.products)),
+ card:r=>{const p=r.products;return p?prodCard(p,{heart:true,attr:`data-card="${p.id}"`}):`<div data-card="${r.product_id}" class="pc pc-gone"><div class="pc-img">No longer available</div><div class="pc-body"><button data-w="${r.product_id}" class="btn b2" style="margin-top:auto">Remove</button></div></div>`},
+ none});
+box.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(b&&Cart.add(PM.get(+b.dataset.id)))notice('Added to cart')});
+Wish.bind(box,U,(id,now)=>{if(now)return;box.querySelector(`[data-card="${id}"]`)?.remove();if(!box.querySelector('[data-card]'))box.outerHTML=none});
+},skGrid(4));
+</script></body></html>
