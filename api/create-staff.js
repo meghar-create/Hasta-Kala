@@ -1,8 +1,11 @@
 // A shop owner creates a staff account for their own shop. Staff cannot sign themselves up.
 const{handler,fail}=require('./_lib');
 module.exports=handler(async(b,db,u)=>{
-const{data:me}=await db.from('profiles').select('role,shop_id').eq('id',u.id).single();
-if(me?.role!=='owner'||!me.shop_id)throw fail('Only shop owners can create staff accounts',403);
+const{data:me,error:profileError}=await db.from('profiles').select('role,shop_id').eq('id',u.id).single();
+if(profileError)throw fail('Could not verify the shop-owner profile: '+profileError.message,500);
+if(!me)throw fail('No profile was found for this account',403);
+if(me.role!=='owner')throw fail(`Only shop owners can create staff accounts (signed-in user ${u.id} has profile role "${me.role||'unset'}", shop ${me.shop_id??'none'})`,403);
+if(!me.shop_id)throw fail('This shop-owner account has no shop assigned',403);
 const email=String(b.email||'').trim().toLowerCase(),pw=String(b.password||''),name=String(b.name||'').trim().slice(0,100);
 if(!/^\S+@\S+\.\S+$/.test(email))throw fail('Enter a valid email',400);
 if(pw.length<8)throw fail('Password must be at least 8 characters',400);

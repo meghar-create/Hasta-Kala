@@ -32,11 +32,15 @@ create table if not exists shops(
   created_at timestamptz default now(),
   -- delivery settings (v2.3)
   pincode text check(pincode ~ '^[1-9][0-9]{5}$'),
+  delivery_enabled boolean not null default true,
   delivery_local_fee numeric not null default 0 check(delivery_local_fee>=0),
+  delivery_state_fee numeric not null default 0 check(delivery_state_fee>=0),
   delivery_far_fee numeric not null default 0 check(delivery_far_fee>=0),
   free_above numeric check(free_above>0),
   local_days text not null default '1-2' check(length(local_days) between 1 and 20),
+  state_days text not null default '2-4' check(length(state_days) between 1 and 20),
   far_days text not null default '4-7' check(length(far_days) between 1 and 20),
+  handling_days int not null default 1 check(handling_days between 0 and 30),
   ships_india boolean not null default true,
   cod_enabled boolean not null default true,
   -- pickup from the store (v2.4)
@@ -93,6 +97,10 @@ create table if not exists orders(
   discount numeric not null default 0,
   coupon_code text,
   delivery_fee numeric not null default 0,
+  commission_pct numeric not null default 0,
+  commission_amt numeric not null default 0,
+  sold_by_name text,
+  sold_by_role text check(sold_by_role is null or sold_by_role in('owner','staff')),
   courier text,
   tracking_no text,
   -- delivery = shipped to the customer, pickup = customer collects from the store, counter = sold at the shop counter (v2.4)
@@ -123,6 +131,14 @@ create table if not exists sub_payments(
   months int default 1,
   razorpay_payment_id text unique,
   paid_at timestamptz default now());
+
+create table if not exists settlements(
+  id serial primary key,
+  shop_id int not null references shops,
+  amount numeric not null check(amount<>0),
+  method text check(length(method)<=40),
+  note text check(length(note)<=300),
+  created_at timestamptz not null default now());
 
 create table if not exists addresses(
   id serial primary key,
@@ -182,11 +198,15 @@ create table if not exists contact_messages(
 -- Upgrading an older project? These add any column an older version did not have (no-op on a fresh project).
 alter table profiles add column if not exists staff_ok boolean default false;
 alter table shops  add column if not exists pincode text check(pincode ~ '^[1-9][0-9]{5}$');
+alter table shops  add column if not exists delivery_enabled boolean not null default true;
 alter table shops  add column if not exists delivery_local_fee numeric not null default 0 check(delivery_local_fee>=0);
+alter table shops  add column if not exists delivery_state_fee numeric not null default 0 check(delivery_state_fee>=0);
 alter table shops  add column if not exists delivery_far_fee numeric not null default 0 check(delivery_far_fee>=0);
 alter table shops  add column if not exists free_above numeric check(free_above>0);
 alter table shops  add column if not exists local_days text not null default '1-2' check(length(local_days) between 1 and 20);
+alter table shops  add column if not exists state_days text not null default '2-4' check(length(state_days) between 1 and 20);
 alter table shops  add column if not exists far_days text not null default '4-7' check(length(far_days) between 1 and 20);
+alter table shops  add column if not exists handling_days int not null default 1 check(handling_days between 0 and 30);
 alter table shops  add column if not exists ships_india boolean not null default true;
 alter table shops  add column if not exists phone text check(length(phone)<=20);
 alter table shops  add column if not exists address text check(length(address)<=300);
@@ -195,6 +215,10 @@ alter table shops  add column if not exists cod_enabled boolean not null default
 alter table orders add column if not exists discount numeric not null default 0;
 alter table orders add column if not exists coupon_code text;
 alter table orders add column if not exists delivery_fee numeric not null default 0;
+alter table orders add column if not exists commission_pct numeric not null default 0;
+alter table orders add column if not exists commission_amt numeric not null default 0;
+alter table orders add column if not exists sold_by_name text;
+alter table orders add column if not exists sold_by_role text check(sold_by_role is null or sold_by_role in('owner','staff'));
 alter table orders add column if not exists courier text;
 alter table orders add column if not exists tracking_no text;
 alter table orders add column if not exists fulfilment text not null default 'delivery' check(fulfilment in('delivery','pickup','counter'));
@@ -223,6 +247,40 @@ create or replace function is_super() returns boolean language sql security defi
 create or replace function shop_live(sid int) returns boolean language sql security definer stable set search_path=public as $$
   select exists(select 1 from shops s join plans p on p.id=s.plan_id
     where s.id=sid and s.approved and s.sub_status<>'suspended' and (p.price=0 or s.sub_expires_at>now()))$$;
+
+create or replace function pin_region(pin text) returns text language plpgsql immutable as $$
+declare n int;
+begin
+  if pin is null or pin !~ '^[1-9][0-9]{5}$' then return null; end if;
+  n:=left(pin,2)::int;
+  return case
+    when n between 12 and 13 then 'HR'
+    when n between 14 and 16 then 'PB'
+    when n between 18 and 19 then 'JK'
+    when n between 20 and 28 then 'UP'
+    when n between 30 and 34 then 'RJ'
+    when n between 36 and 39 then 'GJ'
+    when n between 40 and 44 then 'MH'
+    when n between 45 and 48 then 'MP'
+    when n between 50 and 53 then 'TG'
+    when n between 56 and 59 then 'KA'
+    when n between 60 and 64 then 'TN'
+    when n between 67 and 69 then 'KL'
+    when n between 70 and 74 then 'WB'
+    when n between 75 and 77 then 'OD'
+    when n between 78 and 79 then 'NE'
+    when n between 80 and 85 then 'BR'
+    else left(pin,2)
+  end;
+end$$;
+
+create or replace function shop_sellers() returns table(name text,role text) language sql security definer stable set search_path=public as $$
+  select coalesce(nullif(trim(p.full_name),''),nullif(trim(p.email),''),'Shop user'),p.role
+    from profiles p
+   where my_role() in('owner','staff') and p.shop_id=my_shop() and p.role in('owner','staff')
+   order by 2,1$$;
+revoke execute on function shop_sellers() from public,anon;
+grant execute on function shop_sellers() to authenticated;
 
 create or replace function has_received(pid int) returns boolean language sql security definer stable set search_path=public as $$
   select exists(select 1 from order_items oi join orders o on o.id=oi.order_id
@@ -422,17 +480,22 @@ begin
 end$$;
 revoke execute on function expire_pending_orders from public,anon,authenticated;
 
--- 4.2 delivery fee for a pincode ("local" = same first 3 digits as the shop's pincode)
+-- 4.2 delivery fee by zone: local area, same state, or rest of India
 create function delivery_calc(sid int,pin text,sub numeric,out fee numeric,out is_local boolean) language plpgsql security definer set search_path=public as $$
-declare s shops;
+declare s shops; in_state boolean;
 begin
   select * into s from shops where id=sid;
+  if not found then raise exception 'Store not found'; end if;
+  if not s.delivery_enabled then raise exception 'This store does not offer home delivery. Please choose store pickup.'; end if;
   is_local:=s.pincode is not null and left(s.pincode,3)=left(coalesce(pin,''),3);
-  if not is_local and not s.ships_india then
-    raise exception 'This store delivers only near %. Please choose a different address or store.',coalesce(s.city,'its location');
+  in_state:=not is_local and pin_region(pin) is not null and pin_region(pin)=pin_region(s.pincode);
+  if not is_local and not in_state and not s.ships_india then
+    raise exception 'This store delivers only within its state. Please choose a different address or store.';
   end if;
   fee:=case when s.free_above is not null and sub>=s.free_above then 0
-            when is_local then s.delivery_local_fee else s.delivery_far_fee end;
+            when is_local then s.delivery_local_fee
+            when in_state then s.delivery_state_fee
+            else s.delivery_far_fee end;
 end$$;
 revoke execute on function delivery_calc from public,anon,authenticated;
 
@@ -467,20 +530,26 @@ end$$;
 -- 4.5 the one function that creates every order (online + POS): checks stock, prices, coupon, delivery
 --     fulfilment: delivery (shipped), pickup (customer collects) or counter (POS sale). pdisc = counter discount in rupees.
 create or replace function make_order(sid int,uid uuid,ch text,items jsonb,addr jsonb,cust text,pay text,st text,cpn text default null,ful text default null,pdisc numeric default 0) returns int language plpgsql security definer set search_path=public as $$
-declare oid int; i jsonb; p products; t numeric:=0; q int; r record; dr record; disc numeric:=0; df numeric:=0; cc text; fl text; sh shops;
+declare oid int; i jsonb; p products; t numeric:=0; q int; r record; dr record; disc numeric:=0; df numeric:=0; cc text; fl text; sh shops; commission_rate numeric:=0; commission_fee numeric:=0; seller_name text; seller_role text;
 begin
   perform expire_pending_orders();
   if not shop_live(sid) then raise exception 'This store is not accepting orders'; end if;
   select * into sh from shops where id=sid;
+  select coalesce(plan_row.commission_pct,0) into commission_rate from plans plan_row where plan_row.id=sh.plan_id;
   fl:=coalesce(ful,case when ch='pos' then 'counter' else 'delivery' end);
   if (ch='pos' and fl<>'counter') or (ch='online' and fl not in('delivery','pickup')) then raise exception 'Invalid order type'; end if;
+  if ch='pos' then
+    select coalesce(nullif(trim(full_name),''),nullif(trim(email),''),'Shop user'),role
+      into seller_name,seller_role from profiles where id=auth.uid();
+    if seller_role is null or seller_role not in('owner','staff') then raise exception 'Not allowed'; end if;
+  end if;
   if fl='pickup' and not sh.pickup_enabled then raise exception 'This store does not offer pickup. Please choose home delivery.'; end if;
   if fl='delivery' and ch='online' and pay='COD' and not sh.cod_enabled then
     raise exception 'This store does not accept cash on delivery. Please pay online.';
   end if;
   if coalesce(pdisc,0)<0 then raise exception 'Discount cannot be negative'; end if;
-  insert into orders(shop_id,user_id,channel,address,customer_name,payment_method,status,payment_status,created_by,fulfilment)
-  values(sid,uid,ch,addr,cust,pay,st,case when pay='Online' then 'pending' when ch='pos' then 'paid' else 'cod' end,auth.uid(),fl)
+  insert into orders(shop_id,user_id,channel,address,customer_name,payment_method,status,payment_status,created_by,fulfilment,sold_by_name,sold_by_role)
+  values(sid,uid,ch,addr,cust,pay,st,case when pay='Online' then 'pending' when ch='pos' then 'paid' else 'cod' end,auth.uid(),fl,seller_name,seller_role)
   returning id into oid;
   for i in select * from jsonb_array_elements(items) loop
     q:=(i->>'qty')::int;
@@ -502,7 +571,9 @@ begin
   if ch='online' and fl='delivery' then
     select * into dr from delivery_calc(sid,addr->>'pincode',t); df:=dr.fee;
   end if;
-  update orders set total=t-disc+df,discount=disc,coupon_code=cc,delivery_fee=df where id=oid;
+  if ch='online' then commission_fee:=round((t-disc)*commission_rate/100,2); end if;
+  update orders set total=t-disc+df,discount=disc,coupon_code=cc,delivery_fee=df,
+    commission_pct=commission_rate,commission_amt=commission_fee where id=oid;
   return oid;
 end$$;
 revoke execute on function make_order from public,anon,authenticated;
@@ -584,6 +655,7 @@ alter table orders             enable row level security;
 alter table order_items        enable row level security;
 alter table reviews            enable row level security;
 alter table sub_payments       enable row level security;
+alter table settlements        enable row level security;
 alter table addresses          enable row level security;
 alter table wishlist           enable row level security;
 alter table coupons            enable row level security;
@@ -621,6 +693,10 @@ drop policy if exists rv_d on reviews;    create policy rv_d on reviews    for d
 drop policy if exists sp_r on sub_payments; create policy sp_r on sub_payments for select using(is_super() or (shop_id=my_shop() and my_role()='owner'));
 drop policy if exists sp_w on sub_payments; create policy sp_w on sub_payments for all using(is_super()) with check(is_super());
 
+drop policy if exists st_r on settlements; create policy st_r on settlements for select to authenticated using(is_super());
+drop policy if exists st_i on settlements; create policy st_i on settlements for insert to authenticated with check(is_super());
+drop policy if exists st_d on settlements; create policy st_d on settlements for delete to authenticated using(is_super());
+
 drop policy if exists ad_all on addresses; create policy ad_all on addresses for all using(user_id=auth.uid()) with check(user_id=auth.uid());
 drop policy if exists wl_all on wishlist;  create policy wl_all on wishlist  for all using(user_id=auth.uid()) with check(user_id=auth.uid());
 
@@ -635,10 +711,21 @@ drop policy if exists cm_r on contact_messages; create policy cm_r on contact_me
 drop policy if exists cm_d on contact_messages; create policy cm_d on contact_messages for delete using(is_super());
 
 -- table permissions for the newer tables
-revoke all on addresses,wishlist,coupons,coupon_redemptions,order_events,contact_messages from anon;
+revoke all on addresses,wishlist,coupons,coupon_redemptions,order_events,contact_messages,settlements from anon;
 grant select,insert,update,delete on addresses,wishlist,coupons,order_events,contact_messages to authenticated;
+grant select,insert,delete on settlements to authenticated;
 grant insert on contact_messages to anon;
+
+-- Table privileges are required in addition to the row-level security policies above.
+grant select on plans,shops,categories,products,reviews to anon,authenticated;
+grant select on profiles,orders,order_items,sub_payments to authenticated;
+grant insert,update on plans to authenticated;
+grant update on shops,profiles,orders to authenticated;
+grant insert,update,delete on categories,products to authenticated;
+grant insert,delete on reviews to authenticated;
+grant insert on sub_payments to authenticated;
 grant usage,select on all sequences in schema public to anon,authenticated;
+grant select,update on profiles to service_role;
 
 
 -- =====================================================================================
